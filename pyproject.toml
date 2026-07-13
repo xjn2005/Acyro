@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "acyro"
-version = "0.1.0"
+version = "0.1.1"
 description = "A small Python-native DAG task executor with caching."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -20,9 +20,16 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Software Development :: Build Tools",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/xjn2005/Acyro"
+Repository = "https://github.com/xjn2005/Acyro"
+Issues = "https://github.com/xjn2005/Acyro/issues"
 
 [project.optional-dependencies]
 dev = [

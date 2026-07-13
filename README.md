@@ -1,7 +1,14 @@
 # Acyro
 
-Acyro is a small, local DAG task runner for Python. It executes decorated
-functions in dependency order and skips unchanged work using a local JSON cache.
+[![PyPI](https://img.shields.io/pypi/v/acyro.svg)](https://pypi.org/project/acyro/)
+[![Python](https://img.shields.io/pypi/pyversions/acyro.svg)](https://pypi.org/project/acyro/)
+[![CI](https://github.com/xjn2005/Acyro/actions/workflows/ci.yml/badge.svg)](https://github.com/xjn2005/Acyro/actions/workflows/ci.yml)
+[![License](https://img.shields.io/pypi/l/acyro.svg)](https://github.com/xjn2005/Acyro/blob/main/LICENSE)
+
+**English** | [简体中文](https://github.com/xjn2005/Acyro/blob/main/README.zh-CN.md)
+
+A small, local, Python-native DAG task runner with deterministic execution and
+JSON caching.
 
 ## Install
 
@@ -9,9 +16,9 @@ functions in dependency order and skips unchanged work using a local JSON cache.
 pip install acyro
 ```
 
-Until the first PyPI release, install a checkout with `uv sync --extra dev`.
+Requires Python 3.12 or newer.
 
-## Python API
+## Quick start
 
 ```python
 from acyro import run, task
@@ -30,29 +37,26 @@ def build() -> None:
 run()
 ```
 
-`run()` caches successful tasks under `.acyro/cache`. A task runs again when
-its metadata, source code, or any dependency fingerprint changes. Pass
-`run(cache_dir=...)` to use another directory.
+`run()` executes tasks in dependency order. Later runs skip unchanged tasks.
 
 ## CLI
 
-Put tasks in a Python file, then run or inspect them:
+Put tasks in a Python file, then run or inspect the graph:
 
 ```bash
-acyro graph examples/acyrofile.py
 acyro run examples/acyrofile.py
+acyro graph examples/acyrofile.py
 ```
 
-Example graph output:
+## Cache
 
-```text
-download -> build
-```
+Successful tasks are cached under `.acyro/cache`. Fingerprints include task
+metadata, source code, and dependency fingerprints, so dependency changes
+invalidate downstream tasks. Use `run(cache_dir=...)` to choose another cache
+directory.
 
-## Scope
-
-Acyro v0.1 is intentionally serial and local. It has no scheduler, distributed
-workers, async runtime, database, retries, or pluggable cache backends.
+Acyro is intentionally serial and local. It has no async runtime, distributed
+workers, database, retries, or pluggable cache backends.
 
 ## Development
 
@@ -63,5 +67,4 @@ uv run ruff check .
 uv build
 ```
 
-See [publishing instructions](docs/publishing.md) for the one-time GitHub and
-PyPI setup.
+Licensed under the [MIT License](https://github.com/xjn2005/Acyro/blob/main/LICENSE).
