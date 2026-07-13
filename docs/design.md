@@ -1,160 +1,109 @@
 # Acyro Design
 
-## Why Acyro Exists
+## Purpose
 
-Acyro is a small Python-native workflow build system for local, repeatable task
-graphs. It is for projects where a developer wants Make-like dependency
-execution without leaving Python:
+Acyro is a small Python-native build and task runner for local, repeatable DAGs.
+It provides Make-like dependency execution without requiring a separate
+configuration language:
 
 ```python
 from acyro import run, task
 
-@task
-def download():
-    pass
 
-@task(depends=[download])
-def train():
-    pass
+@task(inputs=["data/*.csv"], outputs=["build/merged.csv"])
+def merge() -> None:
+    ...
+
+
+@task(depends=[merge])
+def report() -> None:
+    ...
+
 
 run()
 ```
 
-The v0.1 goal is deliberately narrow: define tasks as Python functions, build a
-DAG, run dependencies in order, detect cycles, and skip work that has not
-changed.
-
-Acyro is not a scheduler, orchestrator, queue, or platform. It should feel
-closer to Make or Ninja than Airflow.
-
-## Comparison
-
-Make is simple, local, file-oriented, and excellent at incremental builds. Acyro
-borrows its dependency-first execution model and "skip unchanged work" spirit,
-but replaces Makefiles with Python functions.
-
-CMake generates build systems and shines for cross-platform native builds.
-Acyro is not a generator and does not try to model compilers, toolchains, or
-platform-specific build targets.
-
-Ninja is fast, explicit, and intentionally minimal. Acyro borrows that bias
-toward a small execution core, clear graph behavior, and predictable output.
-
-Airflow is a distributed workflow orchestration platform with scheduling,
-workers, persistence, retries, backfills, web UI, and operational concepts.
-Acyro avoids that entire class of features in v0.1. Local execution and local
-cache files are enough.
+The v0.2 scope is deliberately narrow: define tasks as Python functions, build
+a DAG, run dependencies serially, detect cycles, and skip work whose code,
+dependencies, inputs, and outputs have not changed. Acyro is closer to Make or
+Ninja than to a scheduler or orchestration platform.
 
 ## Architecture
 
 Acyro has five small parts:
 
-1. `task.py`: the `@task` decorator, task metadata, dependency declarations, and
-   a registry for tasks defined in user code.
-2. `dag.py`: node and edge handling, topological sorting, and cycle detection.
-3. `cache.py`: file-based cache records keyed by task identity, task code, and
-   dependency metadata.
-4. `executor.py`: dependency-order execution, status updates, failure handling,
-   cache checks, and progress logs.
-5. `cli.py`: `acyro run` and `acyro graph`.
+1. `task.py` defines `Task`, `@task`, file declarations, statuses, and the task
+   registry.
+2. `dag.py` validates dependencies, stores edges, sorts tasks, and detects
+   cycles.
+3. `cache.py` computes fingerprints and stores successful JSON cache records.
+4. `executor.py` runs tasks in dependency order and updates their statuses.
+5. `cli.py` imports workflow files and provides `acyro run` and `acyro graph`.
 
-The public API should stay tiny:
+The CLI and Python API use the same registry, DAG, executor, and cache. The
+public API remains intentionally small:
 
 ```python
 from acyro import run, task
 ```
 
-The CLI should import the user's workflow module, let decorators register tasks,
-then execute or print the graph. The Python API should use the same engine so
-CLI and in-process behavior do not drift.
+## Execution Flow
 
-## Data Flow
+1. Decorated functions register `Task` objects.
+2. `run()` builds and topologically sorts the task DAG.
+3. The cache validates each task's current fingerprint.
+4. A matching task is marked `SKIPPED`; otherwise it runs.
+5. A successful task validates its outputs and writes a cache record.
+6. A failed task is marked `FAILED`, stops execution, and leaves its previous
+   successful record untouched.
 
-1. User imports `task` and decorates Python functions.
-2. Each decorator call creates task metadata and stores it in the active
-   registry.
-3. `run()` builds a DAG from the registry.
-4. The DAG engine topologically sorts tasks and raises on cycles.
-5. The executor walks the sorted tasks.
-6. For each task, the cache compares the current task fingerprint with the last
-   successful cache record.
-7. Unchanged tasks are skipped. Changed or uncached tasks run.
-8. Successful tasks write cache records. Failed tasks stop execution and keep
-   stale cache records untouched.
+Execution is deterministic and serial. Independent tasks follow the stable
+ordering provided by the DAG engine.
 
-## Cache Design
+## File-Aware Cache
 
-The v0.1 cache is a local directory, `.acyro/cache`, containing JSON
-records. A task fingerprint should include:
+The default cache lives in `.acyro/cache` and contains one JSON record per task.
+`run(cache_dir=...)` may select another directory. A fingerprint includes:
 
-- task name
-- function module and qualified name
-- normalized dependency names
-- source code when available
+- task name, module, and qualified name
+- function source code when available
+- dependency fingerprints
+- declared input paths and SHA-256 content hashes
+- declared output paths and SHA-256 content hashes
 
-This is intentionally metadata/code caching, not full file input/output
-tracking. Users who need file-level invalidation can get it later through a
-small explicit API, but v0.1 should not guess filesystem dependencies.
+Inputs may be explicit file paths or Glob patterns. Outputs must be explicit
+file paths. All paths resolve from the current working directory. Plain
+directories are not expanded automatically; recursive matching must be explicit,
+for example `src/**/*.py`.
 
-## CLI Design
+A missing explicit input or a Glob with no matches raises
+`InputNotFoundError` before execution. After a function returns successfully,
+every declared output must exist or `OutputNotFoundError` is raised. A missing
+or externally modified output invalidates its task. Because output hashes are
+part of task fingerprints, dependency output changes also invalidate downstream
+tasks.
 
-`acyro run` executes the registered workflow and prints compact progress:
+Tasks without `inputs` or `outputs` retain the v0.1 source- and
+dependency-based behavior. Missing or corrupted JSON records are ordinary cache
+misses.
 
-```text
-[run] download
-[skip] train
-[fail] evaluate: ValueError(...)
-```
+## Design Choices
 
-`acyro graph` prints a simple text graph, enough to debug dependency shape
-without adding Graphviz or a UI:
-
-```text
-download -> train
-train -> evaluate
-```
-
-## Design Trade-Offs
-
-Acyro chooses a decorator registry over a declarative config file because the
-main value is Python-native workflows.
-
-Acyro chooses local JSON cache files over SQLite because v0.1 does not need
-queries, concurrent writers, or cross-process coordination.
-
-Acyro chooses serial execution over parallel execution because correctness,
-failure behavior, and cache semantics should be boring first. Parallelism can be
-added later without changing the task API if the DAG boundaries stay clean.
-
-Acyro chooses explicit dependencies over automatic dependency discovery because
-implicit discovery is fragile and surprising in Python.
-
-Acyro chooses plain CLI output over rich terminal UI because the early user need
-is clarity, not presentation.
+Acyro uses decorators instead of a declarative config file because its main
+value is Python-native workflows. It uses local JSON instead of SQLite because
+the current scope needs neither queries nor concurrent writers. Dependencies and
+file declarations are explicit so cache behavior remains predictable.
 
 ## Non-Goals
 
-Acyro v0.1 will not include:
+Acyro v0.2 does not include:
 
-- distributed execution
-- web UI
-- database-backed state
-- async scheduler
-- cron or interval scheduling
-- workers or queues
-- retries and backfills
-- automatic file dependency scanning
-- plugin systems
+- target task selection
+- parallel, async, or distributed execution
+- workers, queues, scheduling, retries, or backfills
+- database storage or configurable cache backends
+- automatic directory recursion or dependency discovery
+- mtime-based cache shortcuts
+- web UI or plugin systems
 
-## Step Plan
-
-1. Project structure and this design document.
-2. Task abstraction.
-3. DAG engine.
-4. Executor.
-5. Cache.
-6. CLI.
-7. README and examples.
-
-Each step should leave a small, tested slice behind. If a feature does not serve
-the v0.1 goal, it waits.
+Future additions should preserve the small public API and local execution model.

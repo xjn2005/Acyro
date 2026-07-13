@@ -35,6 +35,27 @@ def test_task_decorator_accepts_dependencies() -> None:
     assert get_tasks() == {"download": download, "train": train}
 
 
+def test_task_decorator_accepts_file_inputs_and_outputs() -> None:
+    clear_registry()
+
+    @task(inputs=["src/**/*.py"], outputs=["dist/report.json"])
+    def build() -> None:
+        pass
+
+    assert build.inputs == ("src/**/*.py",)
+    assert build.outputs == ("dist/report.json",)
+
+
+def test_task_decorator_rejects_glob_outputs() -> None:
+    clear_registry()
+
+    with pytest.raises(ValueError, match="outputs must be explicit file paths"):
+
+        @task(outputs=["dist/*.json"])
+        def build() -> None:
+            pass
+
+
 def test_clear_registry_removes_registered_tasks() -> None:
     clear_registry()
 

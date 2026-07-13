@@ -8,7 +8,7 @@
 **English** | [简体中文](https://github.com/xjn2005/Acyro/blob/main/README.zh-CN.md)
 
 A small, local, Python-native DAG task runner with deterministic execution and
-JSON caching.
+content-aware JSON caching.
 
 ## Install
 
@@ -21,23 +21,29 @@ Requires Python 3.12 or newer.
 ## Quick start
 
 ```python
+from pathlib import Path
+
 from acyro import run, task
 
 
-@task
-def download() -> None:
-    print("download")
+@task(inputs=["data/*.txt"], outputs=["build/combined.txt"])
+def combine() -> None:
+    Path("build").mkdir(exist_ok=True)
+    content = "\n".join(path.read_text() for path in Path("data").glob("*.txt"))
+    Path("build/combined.txt").write_text(content)
 
 
-@task(depends=[download])
-def build() -> None:
-    print("build")
+@task(depends=[combine], outputs=["dist/report.txt"])
+def report() -> None:
+    Path("dist").mkdir(exist_ok=True)
+    Path("dist/report.txt").write_text(Path("build/combined.txt").read_text())
 
 
 run()
 ```
 
-`run()` executes tasks in dependency order. Later runs skip unchanged tasks.
+`run()` executes tasks in dependency order. Later runs mark unchanged tasks as
+`SKIPPED`.
 
 ## CLI
 
@@ -51,9 +57,18 @@ acyro graph examples/acyrofile.py
 ## Cache
 
 Successful tasks are cached under `.acyro/cache`. Fingerprints include task
-metadata, source code, and dependency fingerprints, so dependency changes
-invalidate downstream tasks. Use `run(cache_dir=...)` to choose another cache
-directory.
+metadata, source code, input contents, output contents, and dependency
+fingerprints. Changing an input or dependency invalidates downstream tasks;
+deleting or modifying an output reruns its task.
+
+Input declarations accept explicit files and Glob patterns. Output declarations
+must be explicit file paths. Paths are resolved from the current working
+directory, and file contents are hashed with SHA-256. Missing inputs and outputs
+raise clear errors without replacing the last successful cache record.
+
+Tasks without `inputs` or `outputs` retain the original source- and
+dependency-based cache behavior. Use `run(cache_dir=...)` to choose another
+cache directory.
 
 Acyro is intentionally serial and local. It has no async runtime, distributed
 workers, database, retries, or pluggable cache backends.

@@ -21,15 +21,19 @@ def run(
         task.status = TaskStatus.PENDING
 
     for task in build_dag(selected).topological_sort():
-        if cache.is_current(task):
-            task.status = TaskStatus.SKIPPED
-            continue
+        try:
+            if cache.is_current(task):
+                task.status = TaskStatus.SKIPPED
+                continue
+        except Exception:
+            task.status = TaskStatus.FAILED
+            raise
         task.status = TaskStatus.RUNNING
         started = perf_counter()
         try:
             task.func()
+            cache.write(task, perf_counter() - started)
         except Exception:
             task.status = TaskStatus.FAILED
             raise
         task.status = TaskStatus.SUCCESS
-        cache.write(task, perf_counter() - started)
