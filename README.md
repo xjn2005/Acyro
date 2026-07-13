@@ -1,6 +1,6 @@
 # Acyro
 
-[![PyPI](https://img.shields.io/pypi/v/acyro.svg)](https://pypi.org/project/acyro/)
+[![PyPI](https://img.shields.io/pypi/v/acyro.svg?cacheSeconds=300)](https://pypi.org/project/acyro/)
 [![Python](https://img.shields.io/pypi/pyversions/acyro.svg)](https://pypi.org/project/acyro/)
 [![CI](https://github.com/xjn2005/Acyro/actions/workflows/ci.yml/badge.svg)](https://github.com/xjn2005/Acyro/actions/workflows/ci.yml)
 [![License](https://img.shields.io/pypi/l/acyro.svg)](https://github.com/xjn2005/Acyro/blob/main/LICENSE)
